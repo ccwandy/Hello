@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>連續輸入並顯示資料</title>
+<style>
+:root {
+  --bg: #0b0c10; --card: #121319; --muted: #9aa0a6; --text: #e8eaed;
+  --accent: #4f46e5; --accent-2: #22c55e; --danger: #ef4444; --border: #23252f;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 24px;
+  font-family: ui-sans-serif, -apple-system, "Noto Sans TC", Roboto, "Segoe UI", Helvetica, Arial;
+  color: var(--text);
+  background: radial-gradient(1200px 800px at 20% -10%, #12131a 0, var(--bg) 60%);
+}
+.container { max-width: 980px; margin: 0 auto; }
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+  border: 1px solid var(--border); border-radius: 18px; padding: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+h1 { font-size: 28px; margin: 0 0 12px; letter-spacing: 0.5px; }
+p.desc { margin: 0 0 16px; color: var(--muted); }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.grow { flex: 1 1 180px; }
+input[type="text"], select {
+  width: 100%; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--border); outline: none;
+  background: #0f1117; color: var(--text); font-size: 16px;
+}
+input[type="text"]:focus, select:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,0.25);
+}
+button {
+  border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px;
+  font-size: 14px; cursor: pointer; color: var(--text); background: #151824;
+  transition: transform .04s ease, box-shadow .2s ease, background .2s ease;
+}
+button:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
+button:active { transform: translateY(1px); }
+.btn-primary { background: linear-gradient(180deg, #3438ff, #2a2edb); border-color: #2b2fe0; }
+.btn-secondary { background: #182235; }
+.btn-danger { background: linear-gradient(180deg, #ff5a5a, #e23e3e); border-color: #e23e3e; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toolbar .spacer { flex: 1; }
+table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+thead th {
+  text-align: left; font-weight: 600; color: var(--muted);
+  border-bottom: 1px solid var(--border); padding: 10px;
+}
+tbody td {
+  padding: 12px 10px; border-bottom: 1px dashed #1f2330; vertical-align: top;
+}
+tbody tr:hover { background: rgba(255,255,255,0.03); }
+.empty { color: var(--muted); text-align: center; padding: 20px; }
+</style>
+<script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+<div class="container">
+  <div class="card" style="margin-bottom: 16px;">
+    <h1>連續輸入並顯示資料</h1>
+    <p class="desc">輸入財產編號、流水碼、備註、地點與方式，點「新增」即可加入清單。</p>
+    <div class="row" style="margin-top: 8px;">
+      <div class="grow">
+        <label class="desc">QR Code 掃描</label>
+        <button id="startScanBtn" class="btn-secondary" type="button">開始掃描</button>
+        <div id="qrReader" style="width:100%; max-width:400px; margin-top:8px; display:none;"></div>
+      </div>
+      <div class="grow">
+        <label class="desc">財產編號</label>
+        <input id="propIdInput" type="text" placeholder="Ex：英文字母+6位數字、10位數字" />
+      </div>
+      <div class="grow">
+        <label class="desc">流水碼</label>
+        <input id="serialInput" type="text" placeholder="Ex：0001、1" />
+      </div>
+      <div class="grow">
+        <label class="desc">備註</label>
+        <input id="noteInput" type="text" placeholder="Ex：工號、人名" />
+      </div>
+      <div class="grow">
+        <label class="desc">地點</label>
+        <select id="locationSelect">
+          <option value="奇岩">奇岩</option>
+          <option value="淡水">淡水</option>
+        </select>
+      </div>
+      <div class="grow">
+        <label class="desc">方式</label>
+        <select id="methodSelect">
+          <option value="送來">送來</option>
+          <option value="取回">取回</option>
+        </select>
+      </div>
+    </div>
+    <div class="toolbar" style="margin-top: 12px;">
+      <button id="addBtn" class="btn-primary" type="button">新增</button>
+      <button id="exportCsvBtn" class="btn-secondary" type="button">匯出 CSV</button>
+      <button id="exportJsonBtn" class="btn-secondary" type="button">匯出 JSON</button>
+      <label for="importFile" class="btn-secondary" style="display:inline-block;">匯入</label>
+      <input id="importFile" type="file" accept=".csv,.json" style="display:none" />
+      <div class="spacer"></div>
+      <button id="clearBtn" class="btn-danger" type="button">清除輸入</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content: space-between; align-items:center; margin-bottom: 6px;">
+      <h2 style="margin:0; font-size:20px;">資料清單</h2>
+      <div class="desc">共 <span id="count">0</span> 筆</div>
+      <button id="clearBtn2" class="btn-danger" type="button" style="margin-left: auto;">清除全部</button>
+    </div>
+    <div style="overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 60px;">序號</th>
+            <th>財產編號</th>
+            <th>流水碼</th>
+            <th>備註</th>
+            <th>地點</th>
+            <th>方式</th>
+            <th style="width: 180px;">時間</th>
+            <th style="width: 160px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="8" class="empty">目前沒有資料，請從上方輸入新增。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== 參數 ======
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyRTdP0zuT-MAuYHZI0oCb8S8BQl8ljfiP9urKjKULYKzKY3FhpA_hxXu7h-nxjDZkN/exec";
+const STORAGE_KEY = 'entries-v2';
+
+// ====== 本地資料 ======
+let entries = [];
+function load() {
+  try { entries = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { entries = []; }
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
+function fmt(ts) { return new Date(ts).toLocaleString(); }
+
+function render() {
+  const tbody = document.getElementById('tbody');
+  const count = document.getElementById('count');
+  tbody.innerHTML = '';
+  if (!entries.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 8; td.className='empty'; td.textContent='目前沒有資料，請從上方輸入新增。';
+    tr.appendChild(td); tbody.appendChild(tr);
+  } else {
+    entries.forEach((e,i)=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
+        <td>${i+1}</td>
+        <td>${e.propId}</td>
+        <td>${e.serial}</td>
+        <td>${e.note}</td>
+        <td>${e.location}</td>
+        <td>${e.method}</td>
+        <td>${fmt(e.createdAt)}</td>
+        <td>
+          <button class="btn-danger" data-action="delete" data-id="${e.__localId}">刪除</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  count.textContent = entries.length;
+}
+
+// ====== 同步到 Google Sheet（不送序號/不送id）======
+async function syncToGoogleSheet(entry) {
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(entry)
+    });
+    console.log("已送至 Google Apps Script:", entry);
+  } catch(err) {
+    console.error("送出失敗:", err);
+  }
+}
+
+function add(propId, serial, note, location, method){
+  if(!propId.trim() && !serial.trim() && !note.trim()) return;
+
+  // 只保留需要傳到後端的欄位
+  const entry = {
+    propId: propId.trim(),
+    serial: serial.trim(),
+    note: note.trim(),
+    location,
+    method,
+    createdAt: Date.now()
+  };
+
+  // 加入本地列表（本地自用的臨時 id）
+  entries.push({ ...entry, __localId: String(Date.now()) + Math.random().toString(16).slice(2) });
+  save();
+  render();
+
+  // 傳到 Google Sheet
+  syncToGoogleSheet(entry);
+}
+
+function onDelete(localId){
+  if(!confirm('確定刪除此筆資料？')) return;
+  entries = entries.filter(e=>e.__localId!==localId);
+  save(); render();
+}
+function clearAll(){
+  if(!entries.length) return;
+  if(!confirm('確定清除全部資料？')) return;
+  entries=[]; save(); render();
+}
+
+// --- 初始化 ---
+load(); render();
+
+const propIdInput=document.getElementById('propIdInput');
+const serialInput=document.getElementById('serialInput');
+const noteInput=document.getElementById('noteInput');
+const locationSelect=document.getElementById('locationSelect');
+const methodSelect=document.getElementById('methodSelect');
+const addBtn=document.getElementById('addBtn');
+const clearBtn=document.getElementById('clearBtn');
+const clearBtn2=document.getElementById('clearBtn2');
+const tbody=document.getElementById('tbody');
+
+addBtn.addEventListener('click', ()=>{
+  add(propIdInput.value, serialInput.value, noteInput.value, locationSelect.value, methodSelect.value);
+  propIdInput.value=serialInput.value=noteInput.value='';
+  propIdInput.focus();
+});
+[propIdInput, serialInput, noteInput].forEach(input =>
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      add(propIdInput.value, serialInput.value, noteInput.value, locationSelect.value, methodSelect.value);
+      propIdInput.value=serialInput.value=noteInput.value='';
+      propIdInput.focus();
+    }
+  })
+);
+clearBtn.addEventListener('click', ()=>{
+  propIdInput.value=''; serialInput.value=''; noteInput.value=''; propIdInput.focus();
+});
+clearBtn2.addEventListener('click', clearAll);
+tbody.addEventListener('click', evt=>{
+  const btn=evt.target.closest('button'); if(!btn) return;
+  const localId=btn.dataset.id; if(btn.dataset.action==='delete') onDelete(localId);
+});
+
+// --- QR Code 掃描 ---
+let qrScanner=null;
+const startScanBtn=document.getElementById('startScanBtn');
+const qrReader=document.getElementById('qrReader');
+startScanBtn.addEventListener('click', ()=>{
+  if(qrScanner){
+    qrScanner.stop().then(()=>{
+      qrScanner.clear(); qrReader.style.display='none'; qrScanner=null;
+      startScanBtn.textContent='開始掃描';
+    });
+  } else {
+    qrReader.style.display='block';
+    qrScanner = new Html5Qrcode("qrReader");
+    qrScanner.start(
+      {facingMode:"environment"},
+      {fps:10, qrbox:250},
+      qrCodeMessage=>{
+        const patternFull = /^https:\/\/assets\.acbel\.com\/fixed\?data=(\d+)-(\d+)-(\d+)$/;
+        const patternPartial = /^https:\/\/assets\.acbel\.com\/fixed\?data=(\d+)$/;
+        let matchFull = qrCodeMessage.match(patternFull);
+        if(matchFull){
+          propIdInput.value = matchFull[2];
+          serialInput.value = matchFull[3].slice(0,-1);
+          alert("掃描成功，已自動填入財產編號與流水碼");
+        } else if(qrCodeMessage.match(patternPartial)){
+          let parts = qrCodeMessage.split('-');
+          if(parts.length>=3){
+            propIdInput.value=parts[1];
+            serialInput.value=parts[2].slice(0,-1);
+            alert("掃描成功，已自動填入財產編號與流水碼");
+          } else { alert("掃描成功，但無法解析為財產編號與流水碼"); }
+        } else { alert("掃描成功: " + qrCodeMessage); }
+        qrScanner.stop().then(()=>{
+          qrScanner.clear(); qrReader.style.display='none'; qrScanner=null;
+          startScanBtn.textContent='開始掃描';
+        });
+      }
+    ).then(()=>{ startScanBtn.textContent='停止掃描'; })
+     .catch(err=>{ alert("無法啟動相機: " + err); });
+  }
+});
+</script>
+</body>
+</html>
+
+
+
